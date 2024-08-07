@@ -1,17 +1,99 @@
 package org.example;
 
-//TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
-// click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
+import java.util.LinkedList;
+import java.util.Queue;
+import java.util.Random;
+
+class SharedBuffer {
+    private final Queue<Integer> buffer;
+    private final int maxSize;
+
+    public SharedBuffer(int maxSize) {
+        this.buffer = new LinkedList<>();
+        this.maxSize = maxSize;
+    }
+
+    public synchronized void add(int value) throws InterruptedException {
+        while (buffer.size() == maxSize) {
+            wait();
+        }
+        buffer.add(value);
+        notifyAll();
+    }
+
+    public synchronized int remove() throws InterruptedException {
+        while (buffer.isEmpty()) {
+            wait();
+        }
+        int value = buffer.poll();
+        notifyAll();
+        return value;
+    }
+}
+
+class Producer implements Runnable {
+    private final SharedBuffer buffer;
+    private final Random random;
+
+    public Producer(SharedBuffer buffer) {
+        this.buffer = buffer;
+        this.random = new Random();
+    }
+
+    @Override
+    public void run() {
+        try {
+            while (true) {
+                int number = random.nextInt(100);
+                buffer.add(number);
+                System.out.println("Produced: " + number);
+                Thread.sleep(500); // Simulate time taken to produce a number
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+}
+
+class Consumer implements Runnable {
+    private final SharedBuffer buffer;
+    private int sum;
+
+    public Consumer(SharedBuffer buffer) {
+        this.buffer = buffer;
+        this.sum = 0;
+    }
+
+    @Override
+    public void run() {
+        try {
+            while (true) {
+                int number = buffer.remove();
+                sum += number;
+                System.out.println("Consumed: " + number + ", Sum: " + sum);
+                Thread.sleep(1000); // Simulate time taken to consume a number
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    public int getSum() {
+        return sum;
+    }
+}
+
 public class Main {
     public static void main(String[] args) {
-        //TIP Press <shortcut actionId="ShowIntentionActions"/> with your caret at the highlighted text
-        // to see how IntelliJ IDEA suggests fixing it.
-        System.out.printf("Hello and welcome!");
+        SharedBuffer buffer = new SharedBuffer(10);
 
-        for (int i = 1; i <= 5; i++) {
-            //TIP Press <shortcut actionId="Debug"/> to start debugging your code. We have set one <icon src="AllIcons.Debugger.Db_set_breakpoint"/> breakpoint
-            // for you, but you can always add more by pressing <shortcut actionId="ToggleLineBreakpoint"/>.
-            System.out.println("i = " + i);
-        }
+        Producer producer = new Producer(buffer);
+        Consumer consumer = new Consumer(buffer);
+
+        Thread producerThread = new Thread(producer);
+        Thread consumerThread = new Thread(consumer);
+
+        producerThread.start();
+        consumerThread.start();
     }
 }
